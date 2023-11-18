@@ -16,5 +16,7 @@ When you install the package, modify the `samplekeys.txt` file to include your A
 ### TO-DO
 
 Add queue for multiple requests (voice mode only)
+
 Add command to leave the call
+
 Add command to change TTS voice/attitude
