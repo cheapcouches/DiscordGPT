@@ -1,16 +1,13 @@
 import os
 from time import sleep
-from threading import Thread
-from multiprocessing.connection import Client
 
 import openai
 import random
 import discord
-import asyncio
 import azure.cognitiveservices.speech as speechsdk
 import os
-from discord.ext import command
-import message
+import asyncio
+from discord.ext import commands
 
 # get keys
 f = open("keys.txt", "r")
@@ -60,6 +57,13 @@ intents.message_content = True
 # client = discord.Client(intents=intents)
 bot = commands.Bot(command_prefix="!", description=description, intents=intents)
 voice_channel = None
+vc = None
+isPlaying = False
+
+#everything else this script needs
+q = asyncio.Queue()
+globalStyle = None
+
 
 @bot.event
 async def on_ready():
@@ -68,22 +72,20 @@ async def on_ready():
 
 
 @bot.event
-async def on_message(message):
-
-    msg = message.Msg(message, bot.get_context(message))
+async def on_message(msg):
 
     if msg.author == bot.user:
         return
 
+    if bot.user in msg.mentions:
 
-    if bot.user in msg.message.mentions:
         checkMsg()
 
         currentStyle = random.choice(styles)
         behaviorStyle(currentStyle)
-        print("THING DETECTED FREAK OUT, THIS GUYUS SAID THE THING: " + msg.author)
+        print("THING DETECTED FREAK OUT, THIS GUYUS SAID THE THING: " + msg.author.name)
 
-        messages.append({"role": "user", "name": msg.author, "content": msg.content})
+        messages.append({"role": "user", "name": msg.author.name, "content": msg.content})
         completion = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages
@@ -91,11 +93,72 @@ async def on_message(message):
         chat_response = completion.choices[0].message.content
         messages.append({"role": "assistant", "name": bot.user.name, "content": chat_response})
         if dictate != 0:
-            await msg.message.channel.send(chat_response, reference=msg)
+            await msg.channel.send(chat_response, reference=msg)
         else:
-            await msg.speak(await bot.get_context(msg), chat_response, currentStyle)
+            await q.put(chat_response)
+            if not isPlaying:
+                await speak(await bot.get_context(msg))
 
     await bot.process_commands(msg)
+
+
+async def speak(ctx):
+
+    print('starting to speak!')
+    event = asyncio.Event()
+    event.set()
+
+    global isPlaying
+    isPlaying = True
+    #initial stuffs needed
+    await event.wait()
+    event.clear()
+    if q.empty():
+        print('empty queue, returning')
+        isPlaying = False
+        return
+    msg = await q.get()
+    if globalStyle == None:
+        style = random.choice(styles)
+    else:
+        style = globalStyle
+
+
+    # TTS stuff
+    print('tryinta speak!')
+    file_name = "audio.wav"
+    file_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
+    speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=file_config)
+    result = speech_synthesizer.speak_ssml(ssmlBuilder(msg, style))
+    # Check result
+    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+        print("Speech synthesized for text [{}], and the audio was saved to [{}]".format(msg, file_name))
+    elif result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = result.cancellation_details
+        print("Speech synthesis canceled: {}".format(cancellation_details.reason))
+        if cancellation_details.reason == speechsdk.CancellationReason.Error:
+            print("Error details: {}".format(cancellation_details.error_details))
+
+    # discord stuff
+    try:
+        global voice_channel
+        voice_channel = ctx.author.voice.channel
+    except:
+        await ctx.channel.send("`Author not in voice channel - sending to chat instead`\n")
+        await ctx.channel.send(msg)
+    channel = None
+    if voice_channel != None:
+      try:
+        global vc
+        vc = await voice_channel.connect()
+      except:
+        print("already connected!")
+      source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
+      await ctx.reply(msg)
+      vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(speak(ctx), bot.loop))
+    #after = lambda e: await speak(ctx)
+    else:
+        return
 
 
 @bot.command()
@@ -131,12 +194,25 @@ async def dictate(ctx):
     else:
         dictate = 0
         await ctx.send("`Successfully switched to voice mode.`")
+        await speak(ctx)
     print(dictate)
 
 
 @bot.command()
 async def fuckoff(ctx):
-    voice_channel.disconnect()
+    print(voice_channel)
+    try:
+        await vc.disconnect()
+        await dictate()
+        await reset()
+        await ctx.send('`Bot disconnected, switching back to chat mode.`')
+    except:
+        await ctx.send('`Bot not in channel!`')
+
+
+@bot.command()
+async def skip(ctx):
+    await vc.stop()
 
 
 GUILD_VC_TIMER = {}
