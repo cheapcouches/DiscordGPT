@@ -10,13 +10,12 @@ This application requires the following packages:
 `azure.cognitiveservices.speech`
 `openai`
 
-When you install the package, modify the `samplekeys.txt` file to include your API keys and rename the file to `keys.txt`.
+After installing packages, create three txt files named "azureKey.txt", "discordKey.txt", and "openAIKey.txt".
 
+Copy + paste your respective API keys into each TXT file.
 
 ### TO-DO
 
-Add queue for multiple requests (voice mode only)
-
-Add command to leave the call
-
 Add command to change TTS voice/attitude
+
+Midi generation

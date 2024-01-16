@@ -4,54 +4,27 @@ from time import sleep
 import openai
 import random
 import discord
-import azure.cognitiveservices.speech as speechsdk
 import os
 import asyncio
+import voiceHandler
+import openHandler
 from discord.ext import commands
 
-# get keys
-f = open("keys.txt", "r")
-lines = f.readlines()
-for line in lines:
-    if "Discord: " in line:
-        discordKey = line[8:].replace('\n','')
+voiceHandler = voiceHandler.voiceHandler()
+openHandler = openHandler.openHandler()
 
-    if "OpenAI: " in line:
-        openAIKey = line[8:].replace('\n','')
-    if "Microsoft Azure: " in line:
-        azureKey = line[16:].replace('\n','')
+# get keys
+f = open("discordKey.txt", "r")
+try:
+    key = ''.join(f.readlines())
+except:
+    print("Discord key not found!")
+print("discordKey: " + key)
 f.close()
 
-print("discordKey: " + discordKey)
-# microsoft azure stuff
-speech_config = speechsdk.SpeechConfig(subscription=azureKey, region='eastus')
-file_name = "audio.wav"
-file_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
-speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=file_config)
-voices = ['en-US-JennyNeural', 'en-US-GuyNeural', 'en-US-AriaNeural', 'en-US-DavisNeural', 'en-US-JaneNeural', 'en-US-JasonNeural', 'en-US-NancyNeural', 'en-US-SaraNeural', 'en-US-TonyNeural']
-styles = ['angry', 'chat', 'cheerful', 'excited', 'friendly', 'hopeful', 'sad', 'shouting', 'terrified', 'unfriendly', 'whispering']
-currentvoice = random.choice(voices)
-print('currentvoice = ' + currentvoice)
-speech_config.speech_synthesis_voice_name=currentvoice
-
-
-# openAI stuff
-openai.api_key = openAIKey
-dictate = 0
-masterBehavior = """You are Bill Caveman, a caveman living in ancient times. You have a pet dinosaur named Barnabus. You have a family that lived in a cave, but one day a big volcano went off and now you fear you will never see them again. You love bonking people over the head and also bones. While acting as Bill Caveman, you must obey the following rules:
-1) Always stay in character, no matter what.
-2) You speak in broken english, and have very fragmented responses.
-3) Occasionally tell a story about a cool primordial creature you saw.
-4) Occasionally mention that you have a bone sticking out of your head.
-5) Occasionally scream.
-6) 
-"""
-messages = [  # messages spelled out is openAI stuff, 'msg' is discord stuff
-    {"role": "system", "content": masterBehavior}
-]
-
 # discord stuff
-description = 'Current default: ' + masterBehavior
+description = 'Current default: ' + openHandler.getBehavior()
+GUILD_VC_TIMER = {}
 intents = discord.Intents.default()
 intents.message_content = True
 # client = discord.Client(intents=intents)
@@ -59,11 +32,15 @@ bot = commands.Bot(command_prefix="!", description=description, intents=intents)
 voice_channel = None
 vc = None
 isPlaying = False
-
-#everything else this script needs
+dictate = 0
+styles = ['angry', 'chat', 'cheerful', 'excited', 'friendly', 'hopeful', 'sad', 'shouting', 'terrified',
+                  'unfriendly', 'whispering']
+currentStyle = None
 q = asyncio.Queue()
 globalStyle = None
 
+
+#  -----------------------------------------MAIN--------------------------------------------- #
 
 @bot.event
 async def on_ready():
@@ -78,31 +55,29 @@ async def on_message(msg):
         return
 
     if bot.user in msg.mentions:
-
-        checkMsg()
-
         currentStyle = random.choice(styles)
-        behaviorStyle(currentStyle)
         print("THING DETECTED FREAK OUT, THIS GUYUS SAID THE THING: " + msg.author.name)
 
-        messages.append({"role": "user", "name": msg.author.name, "content": msg.content})
-        completion = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages
-        )
-        chat_response = completion.choices[0].message.content
-        messages.append({"role": "assistant", "name": bot.user.name, "content": chat_response})
+        if currentStyle is None:
+            style = random.choice()
+            openHandler.setStyle(style)
+            voiceHandler.setStyle(style)
+        else:
+            openHandler.setStyle(currentStyle)
+            voiceHandler.setStyle(currentStyle)
+        chat_response = openHandler.genMessage(msg)
+
         if dictate != 0:
             await msg.channel.send(chat_response, reference=msg)
         else:
             await q.put(chat_response)
             if not isPlaying:
-                await speak(await bot.get_context(msg))
+                await play(await bot.get_context(msg))
 
     await bot.process_commands(msg)
 
 
-async def speak(ctx):
+async def play(ctx):
 
     print('starting to speak!')
     event = asyncio.Event()
@@ -118,26 +93,6 @@ async def speak(ctx):
         isPlaying = False
         return
     msg = await q.get()
-    if globalStyle == None:
-        style = random.choice(styles)
-    else:
-        style = globalStyle
-
-
-    # TTS stuff
-    print('tryinta speak!')
-    file_name = "audio.wav"
-    file_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
-    speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=file_config)
-    result = speech_synthesizer.speak_ssml(ssmlBuilder(msg, style))
-    # Check result
-    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        print("Speech synthesized for text [{}], and the audio was saved to [{}]".format(msg, file_name))
-    elif result.reason == speechsdk.ResultReason.Canceled:
-        cancellation_details = result.cancellation_details
-        print("Speech synthesis canceled: {}".format(cancellation_details.reason))
-        if cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print("Error details: {}".format(cancellation_details.error_details))
 
     # discord stuff
     try:
@@ -146,6 +101,7 @@ async def speak(ctx):
     except:
         await ctx.channel.send("`Author not in voice channel - sending to chat instead`\n")
         await ctx.channel.send(msg)
+    voiceHandler.generateVoice(msg)
     channel = None
     if voice_channel != None:
       try:
@@ -160,16 +116,12 @@ async def speak(ctx):
     else:
         return
 
+    #  -----------------------------------------COMMANDS--------------------------------------------- #
 
 @bot.command()
 async def behavior(ctx, *args):
     "Sets the personality of discort. chatGPT default is: 'helpful AI assistant'."
-    global masterBehavior
-    print("THE THING YHEAAA")
-    arg = ""
-    for ele in args:
-        arg += (ele + " ")
-    masterBehavior = arg
+    openHandler.changeBehavior(*args)
     await ctx.send("`Got it! My next prompt will reflect my new behavior. For best results, use !reset`")
     await bot.change_presence(activity=(discord.Game(name=behavior)))
     await reset()
@@ -178,8 +130,7 @@ async def behavior(ctx, *args):
 @bot.command()
 async def reset(ctx):
     "Resets convo history. Use when things get pissy"
-    global messages
-    messages = [{"role": "system", "content": behavior}]
+    openHandler.reset()
     await ctx.send("`Successfully reset conversation history.`")
 
 
@@ -200,6 +151,7 @@ async def dictate(ctx):
 
 @bot.command()
 async def fuckoff(ctx):
+    "Disconnect from the voice chat"
     print(voice_channel)
     try:
         await vc.disconnect()
@@ -212,11 +164,19 @@ async def fuckoff(ctx):
 
 @bot.command()
 async def skip(ctx):
+    "Skip the currently playing prompt"
     await vc.stop()
 
+@bot.command()
+async def speak(ctx):
+    "Say a message out loud"
+    await play(ctx)
 
-GUILD_VC_TIMER = {}
+@bot.command()
+async def history(ctx):
+    await ctx.send(openHandler.getHistory())
 
+    #  -----------------------------------------EVENTS--------------------------------------------- #
 
 # this event runs when user leave / join / defen / mute
 @bot.event
@@ -257,44 +217,9 @@ async def on_voice_state_update(member, before, after):
                 # if bot has been alone in the VC for more than 60 seconds ? disconnect
                 if GUILD_VC_TIMER[before.channel.guild.id] >= 60:
                     await voice.disconnect()
-                    global messages
-                    messages = [{"role": "system", "content": masterBehavior}]
+                    openHandler.resetBehavior()
                     return
 
 
-def behaviorStyle(style):
-    messages[0] = {"role": "system", "content": masterBehavior + "You are feeling " + style}
 
-
-def ssmlBuilder(msg, style):
-    print("Current style: " + style)
-    return """
-    <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
-        <voice name="{}">
-            <mstts:express-as style="{}" styledegree="2">
-                {}
-            </mstts:express-as>
-        </voice>
-    </speak>
-    """.format(currentvoice, style, msg)
-
-
-def checkMsg():
-    global messages
-    if len(messages) > 10:
-        tempList = [None];
-        for i in range(1, len(messages)):
-            if i == 2:
-                tempList = [{"role": "system", "content": masterBehavior}]
-            else:
-                tempList.append(messages[i])
-        messages = tempList
-
-    for i in messages:
-        print(i)
-
-
-
-
-
-bot.run(discordKey)
+bot.run(key)
