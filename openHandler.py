@@ -3,7 +3,6 @@ import discord
 class openHandler:
 
     def __init__(self):
-
         # read from files
         f = open("openAIKey.txt", "r")
         try:
@@ -26,6 +25,7 @@ class openHandler:
         self.styles = ['angry', 'chat', 'cheerful', 'excited', 'friendly', 'hopeful', 'sad', 'shouting', 'terrified',
                        'unfriendly', 'whispering']
         self.style = None
+
 
     def genMessage(self, msg):
 
@@ -57,12 +57,14 @@ class openHandler:
     def setStyle(self, style):
         self.messages[0] = {"role": "system", "content": self.masterBehavior + "You are feeling " + style}
 
+
     def setBehavior(self, *args):
         print("THE THING YHEAAA")
         arg = ""
         for ele in args:
             arg += (ele + " ")
         self.masterBehavior = arg
+
 
     def getBehavior(self):
         return self.masterBehavior
@@ -75,8 +77,10 @@ class openHandler:
         except:
             raise FileNotFoundError("defaultPrompt.txt does not exist!")
 
+
     def reset(self):
         self.messages = [{"role": "system", "content": self.masterBehavior}]
+
 
     def getHistory(self):
         return self.messages

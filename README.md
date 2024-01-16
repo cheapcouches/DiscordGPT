@@ -16,6 +16,4 @@ Copy + paste your respective API keys into each TXT file.
 
 ### TO-DO
 
-Add command to change TTS voice/attitude
-
 Midi generation

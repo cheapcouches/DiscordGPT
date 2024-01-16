@@ -37,7 +37,6 @@ styles = ['angry', 'chat', 'cheerful', 'excited', 'friendly', 'hopeful', 'sad', 
                   'unfriendly', 'whispering']
 currentStyle = None
 q = asyncio.Queue()
-globalStyle = None
 
 
 #  -----------------------------------------MAIN--------------------------------------------- #
@@ -55,11 +54,11 @@ async def on_message(msg):
         return
 
     if bot.user in msg.mentions:
-        currentStyle = random.choice(styles)
         print("THING DETECTED FREAK OUT, THIS GUYUS SAID THE THING: " + msg.author.name)
+        print(currentStyle)
 
         if currentStyle is None:
-            style = random.choice()
+            style = random.choice(styles)
             openHandler.setStyle(style)
             voiceHandler.setStyle(style)
         else:
@@ -78,13 +77,12 @@ async def on_message(msg):
 
 
 async def play(ctx):
-
     print('starting to speak!')
     event = asyncio.Event()
     event.set()
-
     global isPlaying
     isPlaying = True
+
     #initial stuffs needed
     await event.wait()
     event.clear()
@@ -102,17 +100,52 @@ async def play(ctx):
         await ctx.channel.send("`Author not in voice channel - sending to chat instead`\n")
         await ctx.channel.send(msg)
     voiceHandler.generateVoice(msg)
-    channel = None
     if voice_channel != None:
-      try:
-        global vc
-        vc = await voice_channel.connect()
-      except:
-        print("already connected!")
-      source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
-      await ctx.reply(msg)
-      vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(speak(ctx), bot.loop))
-    #after = lambda e: await speak(ctx)
+        try:
+            global vc
+            vc = await voice_channel.connect()
+        except:
+            print("already connected!")
+        source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
+        await ctx.reply(msg)
+        vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(play(ctx), bot.loop))
+        #after = lambda e: await speak(ctx)
+    else:
+        return
+
+ # The same thing without sending the message to chat
+async def playNoChat(ctx):
+    print('starting to speak!')
+    event = asyncio.Event()
+    event.set()
+    global isPlaying
+    isPlaying = True
+
+    #initial stuffs needed
+    await event.wait()
+    event.clear()
+    if q.empty():
+        print('empty queue, returning')
+        isPlaying = False
+        return
+    msg = await q.get()
+
+    # discord stuff
+    try:
+        global voice_channel
+        voice_channel = ctx.author.voice.channel
+    except:
+        return
+    voiceHandler.generateVoice(msg)
+    if voice_channel != None:
+        try:
+            global vc
+            vc = await voice_channel.connect()
+        except:
+            print("already connected!")
+        source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
+        vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(playNoChat(ctx), bot.loop))
+        #after = lambda e: await speak(ctx)
     else:
         return
 
@@ -121,7 +154,7 @@ async def play(ctx):
 @bot.command()
 async def behavior(ctx, *args):
     "Sets the personality of discort. chatGPT default is: 'helpful AI assistant'."
-    openHandler.changeBehavior(*args)
+    openHandler.setBehavior(*args)
     await ctx.send("`Got it! My next prompt will reflect my new behavior. For best results, use !reset`")
     await bot.change_presence(activity=(discord.Game(name=behavior)))
     await reset()
@@ -168,13 +201,37 @@ async def skip(ctx):
     await vc.stop()
 
 @bot.command()
-async def speak(ctx):
+async def speak(ctx, *args):
     "Say a message out loud"
-    await play(ctx)
+    if currentStyle is None:
+        voiceHandler.setStyle(random.choice(styles))
+    else:
+        voiceHandler.setStyle(currentStyle)
+    arg = ""
+    for ele in args:
+        arg += (ele + " ")
+    await q.put(arg)
+    await playNoChat(ctx)
 
 @bot.command()
 async def history(ctx):
     await ctx.send(openHandler.getHistory())
+
+@bot.command()
+async def style(ctx, arg):
+    global currentStyle
+    if arg in styles:
+        currentStyle = arg
+        await ctx.send("Changed style to: `" + arg + "`")
+    else:
+        return await ctx.send("Voice does not exist. Available voices are: `" + '` `'.join(styles) + '`')
+
+@bot.command()
+async def voice(ctx, arg):
+    try:
+        await ctx.send("Changed voice to: " + voiceHandler.setVoice(arg))
+    except NameError as e:
+        await ctx.send(e)
 
     #  -----------------------------------------EVENTS--------------------------------------------- #
 
