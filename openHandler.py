@@ -1,4 +1,4 @@
-import openai
+from openai import OpenAI
 import discord
 class openHandler:
 
@@ -6,7 +6,7 @@ class openHandler:
         # read from files
         f = open("openAIKey.txt", "r")
         try:
-            key = ''.join(f.readlines())
+            key = ''.join(f.readline().strip('\n'))
         except:
             print("openAI key not found!")
         f.close()
@@ -18,7 +18,7 @@ class openHandler:
             raise FileNotFoundError("defaultPrompt.txt does not exist!")
 
         # initialize variables
-        openai.api_key = key
+        self.client = OpenAI(api_key=key)
         self.messages = [  # messages spelled out is openAI stuff, 'msg' is discord stuff
             {"role": "system", "content": self.masterBehavior}
         ]
@@ -45,7 +45,7 @@ class openHandler:
 
         # Generate the message
         self.messages.append({"role": "user", "name": msg.author.name, "content": msg.content})
-        completion = openai.ChatCompletion.create(
+        completion = self.client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=self.messages
         )

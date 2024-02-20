@@ -5,6 +5,7 @@ import openai
 import random
 import discord
 import os
+from sys import platform
 import asyncio
 import voiceHandler
 import openHandler
@@ -106,7 +107,10 @@ async def play(ctx):
             vc = await voice_channel.connect()
         except:
             print("already connected!")
-        source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
+        if sys.platform.startswith("win32"):
+            source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
+        else:
+            source = discord.FFmpegPCMAudio(source="audio.wav")
         await ctx.reply(msg)
         vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(play(ctx), bot.loop))
         #after = lambda e: await speak(ctx)
@@ -143,7 +147,10 @@ async def playNoChat(ctx):
             vc = await voice_channel.connect()
         except:
             print("already connected!")
-        source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
+        if sys.platform.startswith("win32"):
+            source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
+        else:
+            source = discord.FFmpegPCMAudio(source="audio.wav")
         vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(playNoChat(ctx), bot.loop))
         #after = lambda e: await speak(ctx)
     else:
