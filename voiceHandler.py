@@ -8,11 +8,12 @@ class voiceHandler:
     def __init__(self):
         f = open("azureKey.txt", "r")
         try:
-            key = ''.join(f.readlines())
+            key = ''.join(f.readline().strip('\n'))
         except:
             raise FileNotFoundError("azureKey.txt not found")
         f.close()
 
+        print(key)
         self.speech_config = speechsdk.SpeechConfig(subscription=key, region='eastus')
         self.file_name = "audio.wav"
         self.file_config = speechsdk.audio.AudioOutputConfig(filename=self.file_name)

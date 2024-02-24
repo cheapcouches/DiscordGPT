@@ -1,3 +1,4 @@
+
 import os
 from time import sleep
 
@@ -100,21 +101,19 @@ async def play(ctx):
     except:
         await ctx.channel.send("`Author not in voice channel - sending to chat instead`\n")
         await ctx.channel.send(msg)
-    voiceHandler.generateVoice(msg)
-    if voice_channel != None:
-        try:
-            global vc
-            vc = await voice_channel.connect()
-        except:
-            print("already connected!")
-        if sys.platform.startswith("win32"):
-            source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
-        else:
+    try: 
+        voiceHandler.generateVoice(msg)
+        if voice_channel != None:
+            try:
+                global vc
+                vc = await voice_channel.connect()
+            except:
+                print("already connected!")
             source = discord.FFmpegPCMAudio(source="audio.wav")
-        await ctx.reply(msg)
-        vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(play(ctx), bot.loop))
-        #after = lambda e: await speak(ctx)
-    else:
+            await ctx.reply(msg)
+            vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(play(ctx), bot.loop))
+    except:
+        print("Shit is fucked!") #after = lambda e: await speak(ctx)
         return
 
  # The same thing without sending the message to chat
@@ -140,22 +139,22 @@ async def playNoChat(ctx):
         voice_channel = ctx.author.voice.channel
     except:
         return
+    #try: 
     voiceHandler.generateVoice(msg)
+    print("Connecting...")
     if voice_channel != None:
         try:
             global vc
             vc = await voice_channel.connect()
         except:
             print("already connected!")
-        if sys.platform.startswith("win32"):
-            source = discord.FFmpegPCMAudio(executable="C:/FFmpeg/bin/ffmpeg.exe", source="audio.wav")
-        else:
-            source = discord.FFmpegPCMAudio(source="audio.wav")
+        source = discord.FFmpegPCMAudio(source="audio.wav")
+        await ctx.reply(msg)
         vc.play(source, after = lambda e: asyncio.run_coroutine_threadsafe(playNoChat(ctx), bot.loop))
-        #after = lambda e: await speak(ctx)
-    else:
-        return
-
+    #except:
+     #   print("Shit is fucked!") #after = lambda e: await speak(ctx)
+      #  return
+    
     #  -----------------------------------------COMMANDS--------------------------------------------- #
 
 @bot.command()
@@ -185,7 +184,7 @@ async def dictate(ctx):
     else:
         dictate = 0
         await ctx.send("`Successfully switched to voice mode.`")
-        await speak(ctx)
+        #await speak(ctx)
     print(dictate)
 
 

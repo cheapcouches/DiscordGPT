@@ -51,6 +51,7 @@ class openHandler:
         )
         chat_response = completion.choices[0].message.content
         self.messages.append({"role": "assistant", "content": chat_response})
+        print("Generated message")
         return chat_response
 
 
