@@ -262,27 +262,10 @@ async def on_voice_state_update(member, before, after):
 
         # if VC has only 1 member (including the bot)
         if len(voice.channel.members) <= 1:
-
+            await voice.disconnect()
+            global vc
+            vc = None
             GUILD_VC_TIMER[before.channel.guild.id] = 0
-
-            while True:
-                print("Time", str(GUILD_VC_TIMER[before.channel.guild.id]), "Total Members",
-                      str(len(voice.channel.members)))
-
-                await asyncio.sleep(1)
-
-                GUILD_VC_TIMER[before.channel.guild.id] += 1
-
-                # if vc has more than 1 member or bot is already disconnectd ? break
-                if len(voice.channel.members) >= 2 or not voice.is_connected():
-                    break
-
-                # if bot has been alone in the VC for more than 60 seconds ? disconnect
-                if GUILD_VC_TIMER[before.channel.guild.id] >= 60:
-                    await voice.disconnect()
-                    openHandler.resetBehavior()
-                    return
-
 
 
 bot.run(key)
