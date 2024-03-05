@@ -16,4 +16,4 @@ Copy + paste your respective API keys into each TXT file.
 
 ### TO-DO
 
-Midi generation
+Image generation
